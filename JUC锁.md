@@ -265,3 +265,39 @@ AQS定义两种资源共享方式
 ReentrantReadWriteLock 可以看成是**组合式**，因为ReentrantReadWriteLock也就是读写锁**允许多个线程同时对某一资源进行读**。
 
 不同的**自定义同步器**争用共享资源的方式也不同。自定义同步器在实现时**只需要实现共享资源 state 的获取与释放方式**即可，至于具体线程等待队列的维护(如获取资源失败入队/唤醒出队等)，AQS已经在上层已经帮我们实现好了。
+
+## AQS数据结构
+
+- `AbstractQueuedSynchronizer`类底层的数据结构是使用`CLH(Craig,Landin,and Hagersten)队列`是一个**虚拟的双向队列**(虚拟的双向队列即不存在队列实例，仅存在结点之间的关联关系)。
+- AQS是将每条请求共享资源的**线程**封装成一个CLH锁队列的一个**结点**(Node)来实现锁的分配。
+- 其中Sync queue，即同步队列，是**双向链表**，包括head结点和tail结点，head结点主要用作后续的调度。
+- 而Condition queue不是必须的，其是一个单向链表，只有当使用Condition时，才会存在此单向链表。并且可能会有多个Condition queue。
+
+![](https://blogpicture2022.oss-cn-hangzhou.aliyuncs.com/202207311913148.png)
+
+## 总结
+
+对于AbstractQueuedSynchronizer的分析，最核心的就是sync queue的分析。
+
+- 每一个结点都是由前一个结点唤醒
+- 当结点发现前驱结点是head并且尝试获取成功，则会轮到该线程运行。
+- condition queue中的结点向sync queue中转移是通过signal操作完成的。
+- 当结点的状态为SIGNAL时，表示后面的结点需要运行。
+
+# ReentrantLock
+
+## 源码分析
+
+ReentrantLock**实现了Lock接口**，Lock接口中定义了lock与unlock相关操作，并且还存在newCondition方法，表示**生成一个条件**。
+
+```java
+public class ReentrantLock implements Lock, java.io.Serializable
+```
+
+### 内部类
+
+ReentrantLock总共有三个内部类，并且三个内部类是紧密相关的，下面先看三个类的关系。
+
+![](https://blogpicture2022.oss-cn-hangzhou.aliyuncs.com/202207311920689.png)
+
+ReentrantLock类内部总共存在Sync、NonfairSync、FairSync三个类，NonfairSync与FairSync类继承自Sync类，Sync类继承自AbstractQueuedSynchronizer抽象类。
